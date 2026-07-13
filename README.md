@@ -1,5 +1,7 @@
 # FU-Students Wi-Fi Fix
 
+[Tiếng Việt](README.vi.md)
+
 Fix connection issues with the `FU-Students` Wi-Fi network on some Linux distributions at FPT University, Can Tho campus.
 
 ## Problem
@@ -85,12 +87,6 @@ To show setup usage, supported flags, and troubleshooting:
 
 The script will ask whether to create iwd profiles for the FU-Students Wi-Fi networks. Choose yes, then enter your university Wi-Fi username/student ID and password.
 
-For non-interactive use, provide credentials through environment variables:
-
-```bash
-sudo env FU_STUDENTS_USERNAME='your-student-id' FU_STUDENTS_PASSWORD='your-password' ./setup.sh
-```
-
 After the script finishes, do not create these networks again from the OS Wi-Fi dialog. iwd should connect automatically when one of the configured networks is visible and the credentials are correct.
 
 ## Check or fix mistyped credentials
@@ -102,12 +98,6 @@ sudo ./setup.sh --update-credentials
 ```
 
 The script will prompt for your credentials again, rewrite all three FU-Students iwd profiles, validate that the credential fields are not blank, then restart `iwd` and NetworkManager.
-
-For non-interactive credential updates:
-
-```bash
-sudo env FU_STUDENTS_USERNAME='your-student-id' FU_STUDENTS_PASSWORD='your-password' ./setup.sh --update-credentials
-```
 
 To check whether the generated profiles exist and have non-empty credential fields:
 

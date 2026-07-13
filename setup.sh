@@ -56,9 +56,6 @@ Troubleshooting:
   - Check logs with:
       journalctl -u iwd -b
       journalctl -u NetworkManager -b
-
-For non-interactive credential updates:
-  sudo env FU_STUDENTS_USERNAME='your-student-id' FU_STUDENTS_PASSWORD='your-password' ./setup.sh --update-credentials
 EOF
 }
 
@@ -228,17 +225,16 @@ prompt_yes_no() {
 prompt_credentials() {
   local username_var="$1"
   local password_var="$2"
-  local entered_username="${FU_STUDENTS_USERNAME:-}"
-  local entered_password="${FU_STUDENTS_PASSWORD:-}"
+  local entered_username=""
+  local entered_password=""
 
-  if [[ -z "${entered_username}" && -t 0 ]]; then
-    read -r -p "FU-Students username/student ID: " entered_username
+  if [[ ! -t 0 ]]; then
+    return 1
   fi
 
-  if [[ -z "${entered_password}" && -t 0 ]]; then
-    read -r -s -p "FU-Students password: " entered_password
-    log ""
-  fi
+  read -r -p "FU-Students username/student ID: " entered_username
+  read -r -s -p "FU-Students password: " entered_password
+  log ""
 
   if [[ -z "${entered_username}" || -z "${entered_password}" ]]; then
     return 1
@@ -287,7 +283,7 @@ write_iwd_profile() {
 
   if ! prompt_credentials username password; then
     log "Skipped iwd profile creation because credentials were not provided."
-    log "For non-interactive use, set FU_STUDENTS_USERNAME and FU_STUDENTS_PASSWORD."
+    log "Run this script from an interactive terminal so it can ask for your username and password."
     return
   fi
 
@@ -367,7 +363,7 @@ update_credentials() {
   record_initial_state
 
   if ! prompt_credentials username password; then
-    die "credentials were not provided. For non-interactive use, set FU_STUDENTS_USERNAME and FU_STUDENTS_PASSWORD."
+    die "credentials were not provided. Run this command from an interactive terminal."
   fi
 
   write_iwd_profiles_with_credentials "${username}" "${password}"
