@@ -12,7 +12,7 @@ At FPT University, Can Tho campus, this setup may fail to connect to the `FU-Stu
 
 There is one important detail: the normal OS network settings UI may still fail even after NetworkManager is switched to the `iwd` backend. A common symptom is that the credential dialog opens, but after clicking **Connect**, nothing happens. Clicking the same Wi-Fi network again opens the same credential dialog repeatedly.
 
-For these networks, the reliable path is to let `iwd` own the 802.1x profiles directly. The setup script therefore prompts for your university Wi-Fi credentials and writes iwd profiles instead of relying on the desktop network settings dialog to create them.
+For these networks, the reliable path is to let `iwd` own the 802.1x profiles directly. This script therefore prompts for your university Wi-Fi credentials and writes iwd profiles instead of relying on the desktop network settings dialog to create them.
 
 Configured SSIDs:
 
@@ -22,13 +22,13 @@ Configured SSIDs:
 
 This repository provides:
 
-- A setup script to configure NetworkManager to use `iwd`.
-- A rollback script to revert the changes made by the setup script.
+- A single script to configure NetworkManager to use `iwd`.
+- A rollback mode to revert the changes made by setup mode.
 - Manual troubleshooting notes for affected students.
 
-## What the setup script changes
+## What setup mode changes
 
-`setup.sh` does the following:
+`fu-students-wifi-fix.sh --setup` does the following:
 
 1. Installs `iwd` if it is not already installed.
 2. Backs up any existing NetworkManager Wi-Fi backend config at the target path.
@@ -55,7 +55,7 @@ This repository provides:
 
 7. Enables and starts the `iwd` service.
 8. Restarts `iwd` and NetworkManager.
-9. Records enough state for `rollback.sh` to undo only the changes made by `setup.sh`.
+9. Records enough state for `--rollback` to undo only the changes made by `--setup`.
 
 `iwd-config-path=` intentionally disables NetworkManager's iwd profile conversion. That prevents NetworkManager from overwriting the direct iwd profiles. `wifi.iwd.autoconnect=true` leaves iwd in charge of initiating connections from its own profiles.
 
@@ -63,7 +63,7 @@ The script intentionally does not disable, mask, or uninstall `wpa_supplicant`. 
 
 ## Supported systems
 
-The setup script supports systems using:
+Setup mode supports systems using:
 
 - `dnf`, such as Fedora
 - `apt-get`, such as Ubuntu or Debian
@@ -75,14 +75,20 @@ Other distributions may still work if `iwd` is installed manually first, but pac
 Clone this repository, then run:
 
 ```bash
-chmod +x setup.sh rollback.sh
-sudo ./setup.sh
+chmod +x fu-students-wifi-fix.sh
+sudo ./fu-students-wifi-fix.sh --setup
 ```
 
-To show setup usage, supported flags, and troubleshooting:
+If you run the script without any flag, it prints help and makes no system changes:
 
 ```bash
-./setup.sh --help
+./fu-students-wifi-fix.sh
+```
+
+To show usage, supported flags, and troubleshooting:
+
+```bash
+./fu-students-wifi-fix.sh --help
 ```
 
 The script will ask whether to create iwd profiles for the FU-Students Wi-Fi networks. Choose yes, then enter your university Wi-Fi username/student ID and password.
@@ -94,7 +100,7 @@ After the script finishes, do not create these networks again from the OS Wi-Fi 
 If you accidentally mistyped your username/student ID or password, do not rollback. Update the generated iwd profiles instead:
 
 ```bash
-sudo ./setup.sh --update-credentials
+sudo ./fu-students-wifi-fix.sh --update-credentials
 ```
 
 The script will prompt for your credentials again, rewrite all three FU-Students iwd profiles, validate that the credential fields are not blank, then restart `iwd` and NetworkManager.
@@ -102,23 +108,23 @@ The script will prompt for your credentials again, rewrite all three FU-Students
 To check whether the generated profiles exist and have non-empty credential fields:
 
 ```bash
-sudo ./setup.sh --check
+sudo ./fu-students-wifi-fix.sh --check
 ```
 
 This check does not print your password. It can detect missing profile files and blank username/password fields, but it cannot prove the password is correct unless the network accepts the connection.
 
 ## Rollback
 
-To revert the changes made by `setup.sh`:
+To revert the changes made by setup mode:
 
 ```bash
-sudo ./rollback.sh
+sudo ./fu-students-wifi-fix.sh --rollback
 ```
 
 To show rollback usage and troubleshooting:
 
 ```bash
-./rollback.sh --help
+./fu-students-wifi-fix.sh --help
 ```
 
 Rollback will:
@@ -181,13 +187,13 @@ If connection still fails after running setup:
 1. Check for missing or blank credential fields:
 
    ```bash
-   sudo ./setup.sh --check
+   sudo ./fu-students-wifi-fix.sh --check
    ```
 
 2. If you may have mistyped your username/student ID or password, update the iwd profiles:
 
    ```bash
-   sudo ./setup.sh --update-credentials
+   sudo ./fu-students-wifi-fix.sh --update-credentials
    ```
 
 3. Restart NetworkManager again:
@@ -223,7 +229,7 @@ If connection still fails after running setup:
 
 ## Files changed by setup
 
-The setup script only writes to:
+Setup mode only writes to:
 
 - `/etc/NetworkManager/conf.d/wifi_backend.conf`
 - `/var/lib/iwd/FU-Students.8021x`

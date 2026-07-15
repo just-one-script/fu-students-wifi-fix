@@ -12,13 +12,21 @@ Lỗi thường gặp: bạn thấy Wi-Fi, bấm vào nhập tài khoản/mật 
 
 Script trong repo này sẽ cấu hình lại Wi-Fi backend sang `iwd` và tạo sẵn profile cho các mạng trên.
 
+Repo hiện dùng một script duy nhất: `fu-students-wifi-fix.sh`.
+
 ## Cách dùng nhanh
 
 Clone repo, sau đó chạy:
 
 ```bash
-chmod +x setup.sh rollback.sh
-sudo ./setup.sh
+chmod +x fu-students-wifi-fix.sh
+sudo ./fu-students-wifi-fix.sh --setup
+```
+
+Nếu chạy script mà không thêm flag nào, script chỉ hiện hướng dẫn và không thay đổi hệ thống:
+
+```bash
+./fu-students-wifi-fix.sh
 ```
 
 Khi script hỏi có tạo profile Wi-Fi không, chọn yes. Sau đó nhập username/student ID và mật khẩu Wi-Fi của trường.
@@ -30,7 +38,7 @@ Sau khi chạy xong, không tạo lại các mạng `FU-Students` từ giao di�
 Không cần rollback. Chạy:
 
 ```bash
-sudo ./setup.sh --update-credentials
+sudo ./fu-students-wifi-fix.sh --update-credentials
 ```
 
 Script sẽ hỏi lại username/student ID và mật khẩu, sau đó ghi lại profile Wi-Fi.
@@ -38,7 +46,7 @@ Script sẽ hỏi lại username/student ID và mật khẩu, sau đó ghi lại
 Để kiểm tra profile có bị thiếu hoặc bị trống thông tin đăng nhập không:
 
 ```bash
-sudo ./setup.sh --check
+sudo ./fu-students-wifi-fix.sh --check
 ```
 
 Lưu ý: lệnh kiểm tra không thể biết mật khẩu đúng hay sai. Nó chỉ kiểm tra profile có tồn tại và có field tài khoản/mật khẩu hay không.
@@ -50,13 +58,13 @@ Thử theo thứ tự:
 1. Kiểm tra profile:
 
    ```bash
-   sudo ./setup.sh --check
+   sudo ./fu-students-wifi-fix.sh --check
    ```
 
 2. Nhập lại tài khoản/mật khẩu:
 
    ```bash
-   sudo ./setup.sh --update-credentials
+   sudo ./fu-students-wifi-fix.sh --update-credentials
    ```
 
 3. Nếu trước đó bạn đã từng bấm kết nối bằng giao diện Wi-Fi của hệ điều hành, xóa các profile cũ:
@@ -87,23 +95,17 @@ Thử theo thứ tự:
 Nếu muốn hoàn tác thay đổi:
 
 ```bash
-sudo ./rollback.sh
+sudo ./fu-students-wifi-fix.sh --rollback
 ```
 
 Sau khi rollback, script sẽ hỏi bạn có muốn reboot ngay không. Nên reboot trước khi thử Wi-Fi lại.
 
 ## Các lệnh trợ giúp
 
-Xem hướng dẫn của script setup:
+Xem hướng dẫn của script:
 
 ```bash
-./setup.sh --help
-```
-
-Xem hướng dẫn của script rollback:
-
-```bash
-./rollback.sh --help
+./fu-students-wifi-fix.sh --help
 ```
 
 ## Script sẽ thay đổi gì?

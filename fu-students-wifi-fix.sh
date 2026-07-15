@@ -17,37 +17,46 @@ die() {
   exit 1
 }
 
+script_name() {
+  printf '%s' "${0##*/}"
+}
+
 usage() {
-  cat <<'EOF'
-FU-Students Wi-Fi Fix setup
+  cat <<EOF
+FU-Students Wi-Fi Fix
 
 What this script does:
-  - Installs iwd when possible.
-  - Configures NetworkManager to use iwd as the Wi-Fi backend.
-  - Creates iwd 802.1x profiles for:
-      * FU-Students
-      * FU-Students Alpha
-      * FU-Students_6G
-  - Uses the same PEAP/MSCHAPV2 username and password for all three profiles.
-  - Restarts iwd and NetworkManager.
-  - Records rollback state for rollback.sh.
+  - --setup configures NetworkManager to use iwd and creates iwd 802.1x profiles.
+  - --rollback reverts changes recorded by --setup.
+  - --check validates generated profile files without printing your password.
+  - --update-credentials rewrites the iwd profiles if you mistyped your username/password.
+
+Configured SSIDs:
+  - FU-Students
+  - FU-Students Alpha
+  - FU-Students_6G
 
 Usage:
-  sudo ./setup.sh
-  sudo ./setup.sh --check
-  sudo ./setup.sh --update-credentials
-  sudo ./setup.sh --help
+  sudo ./$(script_name) --setup
+  sudo ./$(script_name) --rollback
+  sudo ./$(script_name) --check
+  sudo ./$(script_name) --update-credentials
+  ./$(script_name) --help
+
+If no flag is provided, this help is shown and no system changes are made.
 
 Options:
+  --setup                Configure the FU-Students Wi-Fi fix.
+  --rollback             Revert changes made by --setup.
   --check                Check generated iwd profiles for missing files or blank credential fields.
   --update-credentials   Prompt again and rewrite all FU-Students iwd profiles with new credentials.
   -h, --help             Show this help.
 
 Troubleshooting:
   - If you mistyped your username or password:
-      sudo ./setup.sh --update-credentials
+      sudo ./$(script_name) --update-credentials
   - If you want to check whether profile files and credential fields exist:
-      sudo ./setup.sh --check
+      sudo ./$(script_name) --check
   - If you created broken profiles from the OS Wi-Fi dialog, remove them:
       nmcli connection delete FU-Students
       nmcli connection delete 'FU-Students Alpha'
@@ -61,7 +70,7 @@ EOF
 
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
-    die "run this script as root, for example: sudo ./setup.sh"
+    die "run this script as root, for example: sudo ./$(script_name) --setup"
   fi
 }
 
@@ -71,6 +80,18 @@ require_command() {
 
 is_iwd_installed() {
   command -v iwd >/dev/null 2>&1 || command -v iwctl >/dev/null 2>&1
+}
+
+has_supported_package_manager() {
+  command -v dnf >/dev/null 2>&1 || command -v apt-get >/dev/null 2>&1
+}
+
+ensure_iwd_can_be_installed() {
+  if is_iwd_installed || has_supported_package_manager; then
+    return
+  fi
+
+  die "iwd is not installed and no supported package manager was found. Install iwd manually, then run this script again."
 }
 
 install_iwd() {
@@ -103,6 +124,16 @@ systemctl_is_active() {
   systemctl is-active "$1" >/dev/null 2>&1
 }
 
+write_ssids_to_state() {
+  local ssid=""
+
+  printf 'SSIDS=('
+  for ssid in "${SSIDS[@]}"; do
+    printf ' %q' "${ssid}"
+  done
+  printf ' )\n'
+}
+
 record_initial_state() {
   local iwd_was_enabled=0
   local iwd_was_active=0
@@ -116,13 +147,7 @@ record_initial_state() {
 
   if [[ -f "${STATE_FILE}" ]]; then
     log "Existing rollback state found at ${STATE_FILE}; preserving it."
-    {
-      printf 'SSIDS=('
-      for ssid in "${SSIDS[@]}"; do
-        printf ' %q' "${ssid}"
-      done
-      printf ' )\n'
-    } >>"${STATE_FILE}"
+    write_ssids_to_state >>"${STATE_FILE}"
     return
   fi
 
@@ -163,11 +188,7 @@ record_initial_state() {
     printf 'IWD_WAS_ENABLED=%q\n' "${iwd_was_enabled}"
     printf 'IWD_WAS_ACTIVE=%q\n' "${iwd_was_active}"
     printf 'IWD_STATE_DIR=%q\n' "${IWD_STATE_DIR}"
-    printf 'SSIDS=('
-    for ssid in "${SSIDS[@]}"; do
-      printf ' %q' "${ssid}"
-    done
-    printf ' )\n'
+    write_ssids_to_state
     printf 'IWD_PROFILE_BACKUP_DIR=%q\n' "${iwd_profile_backup_dir}"
     printf 'IWD_PROFILE_CREATED=%q\n' "0"
   } >"${STATE_FILE}"
@@ -271,7 +292,7 @@ write_iwd_profiles_with_credentials() {
   done
 }
 
-write_iwd_profile() {
+write_iwd_profiles_interactive() {
   local username=""
   local password=""
 
@@ -347,8 +368,51 @@ check_iwd_profiles() {
     return 0
   fi
 
-  log "Profile check failed. Run: sudo ./setup.sh --update-credentials"
+  log "Profile check failed. Run: sudo ./$(script_name) --update-credentials"
   return 1
+}
+
+enable_iwd() {
+  log "Enabling and starting iwd..."
+  systemctl enable --now iwd
+}
+
+restart_iwd() {
+  log "Restarting iwd..."
+  systemctl restart iwd
+}
+
+restart_networkmanager() {
+  log "Restarting NetworkManager..."
+  systemctl restart NetworkManager
+}
+
+setup_wifi() {
+  require_root
+  require_command systemctl
+  require_command date
+  require_command cp
+
+  ensure_iwd_can_be_installed
+  record_initial_state
+  install_iwd
+  write_networkmanager_config
+  write_iwd_profiles_interactive
+  enable_iwd
+  restart_iwd
+  restart_networkmanager
+
+  log ""
+  log "Done. NetworkManager is configured to use iwd, and iwd is responsible for the FU-Students Wi-Fi profiles."
+  log "Do not create these networks again from the OS Wi-Fi dialog unless you are debugging."
+  log "iwd should connect automatically if the credentials are correct and one of the configured networks is visible."
+  log ""
+  log "If connection still fails, try:"
+  log "  journalctl -u iwd -b"
+  log "  journalctl -u NetworkManager -b"
+  log ""
+  log "To undo these changes, run:"
+  log "  sudo ./$(script_name) --rollback"
 }
 
 update_credentials() {
@@ -378,68 +442,173 @@ update_credentials() {
   log "If the old failed connection state remains visible, reboot before testing again."
 }
 
-enable_iwd() {
-  log "Enabling and starting iwd..."
-  systemctl enable --now iwd
+load_state() {
+  if [[ ! -f "${STATE_FILE}" ]]; then
+    die "state file not found: ${STATE_FILE}. Nothing to rollback."
+  fi
+
+  # shellcheck source=/dev/null
+  source "${STATE_FILE}"
+
+  CONFIG_FILE="${CONFIG_FILE:-/etc/NetworkManager/conf.d/wifi_backend.conf}"
+  CONFIG_EXISTED="${CONFIG_EXISTED:-0}"
+  BACKUP_FILE="${BACKUP_FILE:-}"
+  IWD_WAS_ENABLED="${IWD_WAS_ENABLED:-0}"
+  IWD_WAS_ACTIVE="${IWD_WAS_ACTIVE:-0}"
+  IWD_STATE_DIR="${IWD_STATE_DIR:-/var/lib/iwd}"
+  if ! declare -p SSIDS >/dev/null 2>&1; then
+    if [[ -n "${SSID:-}" ]]; then
+      SSIDS=("${SSID}")
+    else
+      SSIDS=("FU-Students" "FU-Students Alpha" "FU-Students_6G")
+    fi
+  fi
+  IWD_PROFILE_BACKUP_DIR="${IWD_PROFILE_BACKUP_DIR:-}"
+  IWD_PROFILE_CREATED="${IWD_PROFILE_CREATED:-0}"
 }
 
-restart_iwd() {
-  log "Restarting iwd..."
-  systemctl restart iwd
+restore_networkmanager_config() {
+  if [[ "${CONFIG_EXISTED}" == "1" ]]; then
+    if [[ -z "${BACKUP_FILE}" || ! -f "${BACKUP_FILE}" ]]; then
+      die "backup file is missing; refusing to overwrite current config: ${BACKUP_FILE:-<empty>}"
+    fi
+
+    cp -a "${BACKUP_FILE}" "${CONFIG_FILE}"
+    log "Restored previous NetworkManager config from ${BACKUP_FILE}"
+    return
+  fi
+
+  if [[ -f "${CONFIG_FILE}" ]]; then
+    rm -f "${CONFIG_FILE}"
+    log "Removed NetworkManager config created by setup: ${CONFIG_FILE}"
+  else
+    log "NetworkManager config already absent: ${CONFIG_FILE}"
+  fi
 }
 
-restart_networkmanager() {
-  log "Restarting NetworkManager..."
-  systemctl restart NetworkManager
+restore_iwd_state() {
+  if [[ "${IWD_WAS_ACTIVE}" != "1" ]]; then
+    log "Stopping iwd because it was not active before setup..."
+    systemctl stop iwd || true
+  fi
+
+  if [[ "${IWD_WAS_ENABLED}" != "1" ]]; then
+    log "Disabling iwd because it was not enabled before setup..."
+    systemctl disable iwd || true
+  fi
+}
+
+restore_iwd_profiles() {
+  local current_profiles=()
+  local ssid=""
+  local profile_file=""
+
+  if [[ -z "${IWD_PROFILE_BACKUP_DIR}" ]]; then
+    if [[ "${IWD_PROFILE_CREATED}" == "1" ]]; then
+      for ssid in "${SSIDS[@]}"; do
+        profile_file="${IWD_STATE_DIR}/${ssid}.8021x"
+        if [[ -f "${profile_file}" ]]; then
+          rm -f "${profile_file}"
+          log "Removed iwd profile created by setup: ${profile_file}"
+        fi
+      done
+      return
+    fi
+
+    log "No pre-existing iwd profile backup was recorded."
+    return
+  fi
+
+  if [[ ! -d "${IWD_PROFILE_BACKUP_DIR}" ]]; then
+    die "iwd profile backup directory is missing: ${IWD_PROFILE_BACKUP_DIR}"
+  fi
+
+  mkdir -p "${IWD_STATE_DIR}"
+
+  for ssid in "${SSIDS[@]}"; do
+    shopt -s nullglob
+    current_profiles+=("${IWD_STATE_DIR}/${ssid}".*)
+    shopt -u nullglob
+  done
+
+  if (( ${#current_profiles[@]} > 0 )); then
+    rm -f "${current_profiles[@]}"
+  fi
+
+  cp -a "${IWD_PROFILE_BACKUP_DIR}/." "${IWD_STATE_DIR}/"
+  log "Restored previous iwd profile files from ${IWD_PROFILE_BACKUP_DIR}"
+}
+
+remove_state_file() {
+  rm -f "${STATE_FILE}"
+  log "Removed rollback state file: ${STATE_FILE}"
+}
+
+prompt_reboot() {
+  local answer=""
+
+  log ""
+
+  if [[ ! -t 0 ]]; then
+    log "Reboot is recommended now, but no interactive terminal is available."
+    log "Reboot later with: sudo systemctl reboot"
+    return
+  fi
+
+  read -r -p "Reboot now to fully reset Wi-Fi backend state? [y/N] " answer
+
+  case "${answer}" in
+    y|Y|yes|YES|Yes)
+      log "Rebooting now..."
+      systemctl reboot
+      ;;
+    *)
+      log "Reboot skipped. Reboot later before testing Wi-Fi again."
+      ;;
+  esac
+}
+
+rollback_wifi() {
+  require_root
+  require_command systemctl
+  require_command cp
+  require_command rm
+
+  load_state
+  restore_networkmanager_config
+  restore_iwd_profiles
+  restore_iwd_state
+  restart_networkmanager
+  remove_state_file
+
+  log ""
+  log "Rollback complete."
+  prompt_reboot
 }
 
 main() {
   case "${1:-}" in
-    -h|--help)
+    ""|-h|--help)
       usage
-      exit 0
+      ;;
+    --setup)
+      setup_wifi
+      ;;
+    --rollback)
+      rollback_wifi
       ;;
     --check)
       require_root
       check_iwd_profiles
-      exit $?
       ;;
     --update-credentials|--fix-credentials)
       update_credentials
-      exit 0
-      ;;
-    "")
       ;;
     *)
       usage >&2
       exit 2
       ;;
   esac
-
-  require_root
-  require_command systemctl
-  require_command date
-  require_command cp
-
-  record_initial_state
-  install_iwd
-  write_networkmanager_config
-  write_iwd_profile
-  enable_iwd
-  restart_iwd
-  restart_networkmanager
-
-  log ""
-  log "Done. NetworkManager is configured to use iwd, and iwd is responsible for the FU-Students Wi-Fi profiles."
-  log "Do not create these networks again from the OS Wi-Fi dialog unless you are debugging."
-  log "iwd should connect automatically if the credentials are correct and one of the configured networks is visible."
-  log ""
-  log "If connection still fails, try:"
-  log "  journalctl -u iwd -b"
-  log "  journalctl -u NetworkManager -b"
-  log ""
-  log "To undo these changes, run:"
-  log "  sudo ./rollback.sh"
 }
 
 main "$@"
