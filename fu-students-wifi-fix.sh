@@ -23,27 +23,11 @@ script_name() {
 
 usage() {
   cat <<EOF
-FU-Students Wi-Fi Fix
-
-What this script does:
-  - --setup configures NetworkManager to use iwd and creates iwd 802.1x profiles.
-  - --rollback reverts changes recorded by --setup.
-  - --check validates generated profile files without printing your password.
-  - --update-credentials rewrites the iwd profiles if you mistyped your username/password.
-
-Configured SSIDs:
-  - FU-Students
-  - FU-Students Alpha
-  - FU-Students_6G
-
 Usage:
-  sudo ./$(script_name) --setup
-  sudo ./$(script_name) --rollback
-  sudo ./$(script_name) --check
-  sudo ./$(script_name) --update-credentials
-  ./$(script_name) --help
+  sudo ./$(script_name) [option]
 
-If no flag is provided, this help is shown and no system changes are made.
+Make sure you have read the README carefully before running this script.
+If no option is provided, this help is shown and no system changes are made.
 
 Options:
   --setup                Configure the FU-Students Wi-Fi fix.
@@ -51,20 +35,6 @@ Options:
   --check                Check generated iwd profiles for missing files or blank credential fields.
   --update-credentials   Prompt again and rewrite all FU-Students iwd profiles with new credentials.
   -h, --help             Show this help.
-
-Troubleshooting:
-  - If you mistyped your username or password:
-      sudo ./$(script_name) --update-credentials
-  - If you want to check whether profile files and credential fields exist:
-      sudo ./$(script_name) --check
-  - If you created broken profiles from the OS Wi-Fi dialog, remove them:
-      nmcli connection delete FU-Students
-      nmcli connection delete 'FU-Students Alpha'
-      nmcli connection delete FU-Students_6G
-  - Do not recreate these networks from the OS Wi-Fi dialog after setup.
-  - Check logs with:
-      journalctl -u iwd -b
-      journalctl -u NetworkManager -b
 EOF
 }
 
