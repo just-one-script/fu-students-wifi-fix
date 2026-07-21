@@ -4,7 +4,7 @@
 
 Fix connection issues with the `FU-Students` Wi-Fi network on some Linux distributions at FPT University, Can Tho campus.
 
-## Problem
+## 1. Problem
 
 Some Linux distributions, including common Fedora and Ubuntu installations, use NetworkManager with `wpa_supplicant` as the default Wi-Fi backend.
 
@@ -26,7 +26,7 @@ This repository provides:
 - A rollback mode to revert the changes made by setup mode.
 - Manual troubleshooting notes for affected students.
 
-## What setup mode changes
+## 2. What setup mode changes
 
 `fu-students-wifi-fix.sh --setup` does the following:
 
@@ -61,16 +61,18 @@ This repository provides:
 
 The script intentionally does not disable, mask, or uninstall `wpa_supplicant`. NetworkManager should use `iwd` after the backend config is applied, and leaving `wpa_supplicant` alone makes rollback safer.
 
-## Supported systems
+## 3. Supported systems
 
 Setup mode supports systems using:
 
 - `dnf`, such as Fedora
 - `apt-get`, such as Ubuntu or Debian
 
-Other distributions may still work if `iwd` is installed manually first, but package installation is not automated for them.
+> [!note]
+>
+> Other distributions may still work if `iwd` is installed manually first, but package installation is not automated for them.
 
-## Usage
+## 4. Usage
 
 Clone this repository, then run:
 
@@ -113,7 +115,7 @@ sudo ./fu-students-wifi-fix.sh --check
 
 This check does not print your password. It can detect missing profile files and blank username/password fields, but it cannot prove the password is correct unless the network accepts the connection.
 
-## Rollback
+## 5. Rollback
 
 To revert the changes made by setup mode:
 
@@ -138,9 +140,11 @@ Rollback will:
 
 Rollback does not uninstall `iwd`. Package removal is intentionally avoided because `iwd` may be used by other networks or system tools.
 
-After rollback, the script will ask whether you want to reboot immediately. Rebooting is recommended before testing Wi-Fi again because NetworkManager and `iwd` can keep runtime state that is not fully reset by restarting NetworkManager alone. If you choose not to reboot immediately, reboot manually later.
+> [!note]
+>
+> After rollback, the script will ask whether you want to reboot immediately. Rebooting is recommended before testing Wi-Fi again because NetworkManager and `iwd` can keep runtime state that is not fully reset by restarting NetworkManager alone. If you choose not to reboot immediately, reboot manually later.
 
-## Manual verification
+## 6. Manual verification
 
 Check that NetworkManager is configured to use `iwd`:
 
@@ -180,7 +184,7 @@ Check NetworkManager logs:
 journalctl -u NetworkManager -b
 ```
 
-## Troubleshooting
+## 7. Troubleshooting
 
 If connection still fails after running setup:
 
@@ -227,7 +231,7 @@ If connection still fails after running setup:
    journalctl -u iwd -b
    ```
 
-## Files changed by setup
+## 8. Files changed by setup
 
 Setup mode only writes to:
 
@@ -240,10 +244,10 @@ Setup mode only writes to:
 
 Existing iwd profile files for the supported FU-Students SSIDs are backed up before generated profiles are written.
 
-## References
+## 9. References
 
 - [NetworkManager.conf reference](https://networkmanager.pages.freedesktop.org/NetworkManager/NetworkManager/NetworkManager.conf.html): documents `wifi.backend`, `wifi.iwd.autoconnect`, and `iwd-config-path`.
 
-## License
+## 10. License
 
 This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE).

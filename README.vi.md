@@ -8,13 +8,9 @@ Repo này giúp sinh viên FPT University Cần Thơ kết nối các mạng Wi-
 - `FU-Students Alpha`
 - `FU-Students_6G`
 
-Lỗi thường gặp: bạn thấy Wi-Fi, bấm vào nhập tài khoản/mật khẩu, nhưng sau khi bấm **Connect** thì không có gì xảy ra. Bấm lại vào Wi-Fi thì máy lại hỏi tài khoản/mật khẩu lần nữa.
+Script `fu-students-wifi-fix.sh` trong repo này sẽ cấu hình lại Wi-Fi backend sang `iwd` và tạo sẵn profile cho các mạng trên.
 
-Script trong repo này sẽ cấu hình lại Wi-Fi backend sang `iwd` và tạo sẵn profile cho các mạng trên.
-
-Repo hiện dùng một script duy nhất: `fu-students-wifi-fix.sh`.
-
-## Cách dùng nhanh
+## 1. Cách dùng nhanh
 
 Clone repo, sau đó chạy:
 
@@ -33,7 +29,7 @@ Khi script hỏi có tạo profile Wi-Fi không, chọn yes. Sau đó nhập use
 
 Sau khi chạy xong, không tạo lại các mạng `FU-Students` từ giao diện Wi-Fi của hệ điều hành. Nếu thông tin đăng nhập đúng, máy sẽ tự kết nối khi thấy mạng phù hợp.
 
-## Nếu nhập sai tài khoản hoặc mật khẩu
+## 2. Nếu nhập sai tài khoản hoặc mật khẩu
 
 Không cần rollback. Chạy:
 
@@ -51,7 +47,7 @@ sudo ./fu-students-wifi-fix.sh --check
 
 Lưu ý: lệnh kiểm tra không thể biết mật khẩu đúng hay sai. Nó chỉ kiểm tra profile có tồn tại và có field tài khoản/mật khẩu hay không.
 
-## Nếu vẫn không kết nối được
+## 3. Nếu vẫn không kết nối được
 
 Thử theo thứ tự:
 
@@ -90,7 +86,7 @@ Thử theo thứ tự:
    journalctl -u NetworkManager -b
    ```
 
-## Rollback
+## 4. Rollback
 
 Nếu muốn hoàn tác thay đổi:
 
@@ -98,9 +94,11 @@ Nếu muốn hoàn tác thay đổi:
 sudo ./fu-students-wifi-fix.sh --rollback
 ```
 
-Sau khi rollback, script sẽ hỏi bạn có muốn reboot ngay không. Nên reboot trước khi thử Wi-Fi lại.
+> [!note]
+>
+> Sau khi rollback, script sẽ hỏi bạn có muốn reboot ngay không. Nên reboot trước khi thử Wi-Fi lại.
 
-## Các lệnh trợ giúp
+## 5. Các lệnh trợ giúp
 
 Xem hướng dẫn của script:
 
@@ -108,7 +106,7 @@ Xem hướng dẫn của script:
 ./fu-students-wifi-fix.sh --help
 ```
 
-## Script sẽ thay đổi gì?
+## 6. Script sẽ thay đổi gì?
 
 Script có thể ghi vào các file/thư mục sau:
 
@@ -121,15 +119,17 @@ Script có thể ghi vào các file/thư mục sau:
 
 Nếu đã có profile iwd cũ cho các mạng này, script sẽ sao lưu trước khi ghi profile mới.
 
-## Hệ thống được hỗ trợ
+## 7. Hệ thống được hỗ trợ
 
 Script có thể tự cài `iwd` trên các hệ thống dùng:
 
 - `dnf`, ví dụ Fedora
 - `apt-get`, ví dụ Ubuntu hoặc Debian
 
-Nếu distro của bạn không dùng `dnf` hoặc `apt-get`, hãy tự cài `iwd` trước rồi chạy lại script.
+> [!important]
+>
+> Nếu distro của bạn không dùng `dnf` hoặc `apt-get`, hãy tự cài `iwd` trước rồi chạy lại script.
 
-## Giấy phép
+## 8. Giấy phép
 
 Dự án này dùng giấy phép GNU General Public License v3.0. Xem [LICENSE](LICENSE).
