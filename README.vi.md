@@ -10,26 +10,39 @@ Repo này giúp sinh viên FPT University Cần Thơ kết nối các mạng Wi-
 
 Script `fu-students-wifi-fix.sh` trong repo này sẽ cấu hình lại Wi-Fi backend sang `iwd` và tạo sẵn profile cho các mạng trên.
 
-## 1. Cách dùng nhanh
+## 1. Hệ thống được hỗ trợ
 
-Clone repo, sau đó chạy:
+Script có thể tự cài `iwd` trên các hệ thống dùng:
+
+- `dnf`, ví dụ Fedora
+- `apt-get`, ví dụ Ubuntu hoặc Debian
+
+> [!important]
+>
+> Nếu distro của bạn không dùng `dnf` hoặc `apt-get`, hãy tự cài `iwd` trước rồi chạy lại script.
+
+## 2. Cách dùng nhanh
 
 ```bash
+git clone https://github.com/just-one-script/fu-students-wifi-fix.git
+cd fu-students-wifi-fix
 chmod +x fu-students-wifi-fix.sh
 sudo ./fu-students-wifi-fix.sh --setup
 ```
 
-Nếu chạy script mà không thêm flag nào, script chỉ hiện hướng dẫn và không thay đổi hệ thống:
+Khi script hỏi có tạo profile Wi-Fi không, chọn yes. Sau đó nhập username/student ID và mật khẩu Wi-Fi của trường.
+
+> [!important]
+>
+> Sau khi chạy xong, không tạo lại các mạng `FU-Students` từ giao diện Wi-Fi của hệ điều hành. Nếu thông tin đăng nhập đúng, máy sẽ tự kết nối khi thấy mạng phù hợp.
+
+Nếu chạy script mà không thêm flag nào, script chỉ hiện hướng dẫn:
 
 ```bash
 ./fu-students-wifi-fix.sh
 ```
 
-Khi script hỏi có tạo profile Wi-Fi không, chọn yes. Sau đó nhập username/student ID và mật khẩu Wi-Fi của trường.
-
-Sau khi chạy xong, không tạo lại các mạng `FU-Students` từ giao diện Wi-Fi của hệ điều hành. Nếu thông tin đăng nhập đúng, máy sẽ tự kết nối khi thấy mạng phù hợp.
-
-## 2. Nếu nhập sai tài khoản hoặc mật khẩu
+## 3. Nếu nhập sai tài khoản hoặc mật khẩu khi setup
 
 Không cần rollback. Chạy:
 
@@ -45,9 +58,11 @@ Script sẽ hỏi lại username/student ID và mật khẩu, sau đó ghi lại
 sudo ./fu-students-wifi-fix.sh --check
 ```
 
-Lưu ý: lệnh kiểm tra không thể biết mật khẩu đúng hay sai. Nó chỉ kiểm tra profile có tồn tại và có field tài khoản/mật khẩu hay không.
+> [!note]
+>
+> Lệnh kiểm tra trên không thể biết mật khẩu đúng hay sai. Nó chỉ kiểm tra profile có tồn tại và có field tài khoản/mật khẩu hay không.
 
-## 3. Nếu vẫn không kết nối được
+## 4. Nếu vẫn không kết nối được
 
 Thử theo thứ tự:
 
@@ -86,7 +101,7 @@ Thử theo thứ tự:
    journalctl -u NetworkManager -b
    ```
 
-## 4. Rollback
+## 5. Rollback
 
 Nếu muốn hoàn tác thay đổi:
 
@@ -98,38 +113,6 @@ sudo ./fu-students-wifi-fix.sh --rollback
 >
 > Sau khi rollback, script sẽ hỏi bạn có muốn reboot ngay không. Nên reboot trước khi thử Wi-Fi lại.
 
-## 5. Các lệnh trợ giúp
-
-Xem hướng dẫn của script:
-
-```bash
-./fu-students-wifi-fix.sh --help
-```
-
-## 6. Script sẽ thay đổi gì?
-
-Script có thể ghi vào các file/thư mục sau:
-
-- `/etc/NetworkManager/conf.d/wifi_backend.conf`
-- `/var/lib/iwd/FU-Students.8021x`
-- `/var/lib/iwd/FU-Students Alpha.8021x`
-- `/var/lib/iwd/FU-Students_6G.8021x`
-- `/var/backups/fu-students-wifi-fix/`
-- `/var/lib/fu-students-wifi-fix/`
-
-Nếu đã có profile iwd cũ cho các mạng này, script sẽ sao lưu trước khi ghi profile mới.
-
-## 7. Hệ thống được hỗ trợ
-
-Script có thể tự cài `iwd` trên các hệ thống dùng:
-
-- `dnf`, ví dụ Fedora
-- `apt-get`, ví dụ Ubuntu hoặc Debian
-
-> [!important]
->
-> Nếu distro của bạn không dùng `dnf` hoặc `apt-get`, hãy tự cài `iwd` trước rồi chạy lại script.
-
-## 8. Giấy phép
+## 6. Giấy phép
 
 Dự án này dùng giấy phép GNU General Public License v3.0. Xem [LICENSE](LICENSE).

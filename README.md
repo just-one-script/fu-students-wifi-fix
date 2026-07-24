@@ -20,48 +20,7 @@ Configured SSIDs:
 - `FU-Students Alpha`
 - `FU-Students_6G`
 
-This repository provides:
-
-- A single script to configure NetworkManager to use `iwd`.
-- A rollback mode to revert the changes made by setup mode.
-- Manual troubleshooting notes for affected students.
-
-## 2. What setup mode changes
-
-`fu-students-wifi-fix.sh --setup` does the following:
-
-1. Installs `iwd` if it is not already installed.
-2. Backs up any existing NetworkManager Wi-Fi backend config at the target path.
-3. Backs up existing iwd profile files for the supported FU-Students SSIDs, if present.
-4. Writes this NetworkManager config:
-
-   ```ini
-   [main]
-   iwd-config-path=
-
-   [device]
-   wifi.backend=iwd
-   wifi.iwd.autoconnect=true
-   ```
-
-5. Prompts for your FU-Students username/student ID and password.
-6. Writes these iwd profiles using the same PEAP/MSCHAPV2 credentials:
-
-   ```text
-   /var/lib/iwd/FU-Students.8021x
-   /var/lib/iwd/FU-Students Alpha.8021x
-   /var/lib/iwd/FU-Students_6G.8021x
-   ```
-
-7. Enables and starts the `iwd` service.
-8. Restarts `iwd` and NetworkManager.
-9. Records enough state for `--rollback` to undo only the changes made by `--setup`.
-
-`iwd-config-path=` intentionally disables NetworkManager's iwd profile conversion. That prevents NetworkManager from overwriting the direct iwd profiles. `wifi.iwd.autoconnect=true` leaves iwd in charge of initiating connections from its own profiles.
-
-The script intentionally does not disable, mask, or uninstall `wpa_supplicant`. NetworkManager should use `iwd` after the backend config is applied, and leaving `wpa_supplicant` alone makes rollback safer.
-
-## 3. Supported systems
+## 2. Supported systems
 
 Setup mode supports systems using:
 
@@ -72,32 +31,30 @@ Setup mode supports systems using:
 >
 > Other distributions may still work if `iwd` is installed manually first, but package installation is not automated for them.
 
-## 4. Usage
-
-Clone this repository, then run:
+## 3. Usage
 
 ```bash
+git clone https://github.com/just-one-script/fu-students-wifi-fix.git
+cd fu-students-wifi-fix
 chmod +x fu-students-wifi-fix.sh
 sudo ./fu-students-wifi-fix.sh --setup
 ```
 
-If you run the script without any flag, it prints help and makes no system changes:
+The script will ask whether to create iwd profiles for the FU-Students Wi-Fi networks. Choose yes, then enter your university Wi-Fi username/student ID and password.
 
-```bash
-./fu-students-wifi-fix.sh
-```
+> [!important]
+>
+> After the script finishes, do not create these networks again from the OS Wi-Fi dialog. iwd should connect automatically when one of the configured networks is visible and the credentials are correct.
 
 To show usage, supported flags, and troubleshooting:
 
 ```bash
+./fu-students-wifi-fix.sh
+# or
 ./fu-students-wifi-fix.sh --help
 ```
 
-The script will ask whether to create iwd profiles for the FU-Students Wi-Fi networks. Choose yes, then enter your university Wi-Fi username/student ID and password.
-
-After the script finishes, do not create these networks again from the OS Wi-Fi dialog. iwd should connect automatically when one of the configured networks is visible and the credentials are correct.
-
-## Check or fix mistyped credentials
+## 4. Check or fix mistyped credentials
 
 If you accidentally mistyped your username/student ID or password, do not rollback. Update the generated iwd profiles instead:
 
@@ -113,7 +70,7 @@ To check whether the generated profiles exist and have non-empty credential fiel
 sudo ./fu-students-wifi-fix.sh --check
 ```
 
-This check does not print your password. It can detect missing profile files and blank username/password fields, but it cannot prove the password is correct unless the network accepts the connection.
+This check can detect missing profile files and blank username/password fields, but it cannot prove the password is correct unless the network accepts the connection.
 
 ## 5. Rollback
 
@@ -121,12 +78,6 @@ To revert the changes made by setup mode:
 
 ```bash
 sudo ./fu-students-wifi-fix.sh --rollback
-```
-
-To show rollback usage and troubleshooting:
-
-```bash
-./fu-students-wifi-fix.sh --help
 ```
 
 Rollback will:
