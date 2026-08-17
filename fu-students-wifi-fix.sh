@@ -6,6 +6,9 @@ BACKUP_DIR="/var/backups/fu-students-wifi-fix"
 STATE_DIR="/var/lib/fu-students-wifi-fix"
 STATE_FILE="${STATE_DIR}/state"
 IWD_STATE_DIR="/var/lib/iwd"
+PROFILE_PREFIX="fu-students-wifi-fix"
+CA_CERT_FILE="${STATE_DIR}/fun-DC-CA.pem"
+AUTH_DOMAIN="fun.cantho"
 SSIDS=("FU-Students" "FU-Students Alpha" "FU-Students_6G")
 
 log() {
@@ -32,8 +35,9 @@ If no option is provided, this help is shown and no system changes are made.
 Options:
   --setup                Configure the FU-Students Wi-Fi fix.
   --rollback             Revert changes made by --setup.
-  --check                Check generated iwd profiles for missing files or blank credential fields.
-  --update-credentials   Prompt again and rewrite all FU-Students iwd profiles with new credentials.
+  --check                Check generated NetworkManager profiles and credential fields.
+  --update-credentials   Prompt again and update all FU-Students NetworkManager profiles.
+  --ca-cert FILE|system  Use an official CA file, or return to the system CA bundle.
   -h, --help             Show this help.
 EOF
 }
@@ -161,6 +165,7 @@ record_initial_state() {
     write_ssids_to_state
     printf 'IWD_PROFILE_BACKUP_DIR=%q\n' "${iwd_profile_backup_dir}"
     printf 'IWD_PROFILE_CREATED=%q\n' "0"
+    printf 'NM_PROFILES_MANAGED=%q\n' "0"
   } >"${STATE_FILE}"
 }
 
@@ -175,42 +180,16 @@ append_state_value() {
 
 write_networkmanager_config() {
   mkdir -p "$(dirname "${CONFIG_FILE}")"
-  mkdir -p "${IWD_STATE_DIR}"
 
-  printf '[main]\niwd-config-path=\n\n[device]\nwifi.backend=iwd\nwifi.iwd.autoconnect=true\n' >"${CONFIG_FILE}"
+  printf '[device]\nwifi.backend=iwd\nwifi.iwd.autoconnect=false\n' >"${CONFIG_FILE}"
   chmod 0644 "${CONFIG_FILE}"
   log "Configured NetworkManager to use iwd: ${CONFIG_FILE}"
 }
 
-iwd_profile_file_for_ssid() {
+networkmanager_profile_id_for_ssid() {
   local ssid="$1"
 
-  printf '%s/%s.8021x' "${IWD_STATE_DIR}" "${ssid}"
-}
-
-prompt_yes_no() {
-  local prompt="$1"
-  local default="$2"
-  local answer=""
-
-  if [[ ! -t 0 ]]; then
-    [[ "${default}" == "yes" ]]
-    return
-  fi
-
-  if [[ "${default}" == "yes" ]]; then
-    read -r -p "${prompt} [Y/n] " answer
-    case "${answer}" in
-      n|N|no|NO|No) return 1 ;;
-      *) return 0 ;;
-    esac
-  fi
-
-  read -r -p "${prompt} [y/N] " answer
-  case "${answer}" in
-    y|Y|yes|YES|Yes) return 0 ;;
-    *) return 1 ;;
-  esac
+  printf '%s:%s' "${PROFILE_PREFIX}" "${ssid}"
 }
 
 prompt_credentials() {
@@ -235,121 +214,258 @@ prompt_credentials() {
   printf -v "${password_var}" '%s' "${entered_password}"
 }
 
-write_iwd_profiles_with_credentials() {
+networkmanager_profile_exists() {
+  nmcli --get-values connection.id connection show "$1" >/dev/null 2>&1
+}
+
+system_ca_bundle() {
+  local candidate=""
+
+  for candidate in \
+    /etc/ssl/certs/ca-certificates.crt \
+    /etc/pki/tls/certs/ca-bundle.crt \
+    /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem; do
+    if [[ -r "${candidate}" ]]; then
+      printf '%s' "${candidate}"
+      return
+    fi
+  done
+
+  return 1
+}
+
+active_ca_certificate() {
+  if [[ -r "${CA_CERT_FILE}" ]]; then
+    printf '%s' "${CA_CERT_FILE}"
+    return
+  fi
+
+  system_ca_bundle
+}
+
+write_networkmanager_profiles_with_credentials() {
   local username="$1"
   local password="$2"
   local ssid=""
-  local profile_file=""
+  local profile_id=""
+  local ca_cert=""
 
-  mkdir -p "${IWD_STATE_DIR}"
+  ca_cert="$(active_ca_certificate)" || die "no supported system CA bundle was found; provide one with --ca-cert FILE"
 
   for ssid in "${SSIDS[@]}"; do
-    profile_file="$(iwd_profile_file_for_ssid "${ssid}")"
+    profile_id="$(networkmanager_profile_id_for_ssid "${ssid}")"
 
-    {
-      printf '[Security]\n'
-      printf 'EAP-Method=PEAP\n'
-      printf 'EAP-Identity=%s\n' "${username}"
-      printf 'EAP-PEAP-Phase2-Method=MSCHAPV2\n'
-      printf 'EAP-PEAP-Phase2-Identity=%s\n' "${username}"
-      printf 'EAP-PEAP-Phase2-Password=%s\n' "${password}"
-      printf '\n[Settings]\n'
-      printf 'AutoConnect=true\n'
-    } >"${profile_file}"
+    if networkmanager_profile_exists "${profile_id}"; then
+      nmcli connection modify "${profile_id}" \
+        connection.autoconnect yes \
+        connection.autoconnect-priority 100 \
+        wifi.ssid "${ssid}" \
+        wifi.mode infrastructure \
+        wifi-sec.key-mgmt wpa-eap \
+        802-1x.eap peap \
+        802-1x.identity "${username}" \
+        802-1x.phase2-auth mschapv2 \
+        802-1x.password "${password}" \
+        802-1x.system-ca-certs no \
+        802-1x.ca-cert "${ca_cert}" \
+        802-1x.domain-suffix-match "${AUTH_DOMAIN}" \
+        ipv4.method auto \
+        ipv6.method auto
+      log "Updated NetworkManager profile: ${profile_id}"
+      continue
+    fi
 
-    chmod 0600 "${profile_file}"
-    log "Created iwd profile: ${profile_file}"
+    nmcli connection add \
+      type wifi \
+      ifname "*" \
+      con-name "${profile_id}" \
+      ssid "${ssid}" \
+      autoconnect yes \
+      -- \
+      connection.autoconnect-priority 100 \
+      wifi-sec.key-mgmt wpa-eap \
+      802-1x.eap peap \
+      802-1x.identity "${username}" \
+      802-1x.phase2-auth mschapv2 \
+      802-1x.password "${password}" \
+      802-1x.system-ca-certs no \
+      802-1x.ca-cert "${ca_cert}" \
+      802-1x.domain-suffix-match "${AUTH_DOMAIN}"
+    log "Created NetworkManager profile: ${profile_id}"
   done
 }
 
-write_iwd_profiles_interactive() {
-  local username=""
-  local password=""
-
-  if ! prompt_yes_no "Create iwd 802.1x profiles for FU-Students Wi-Fi networks now?" "yes"; then
-    log "Skipped iwd profile creation."
-    log "You will need to create iwd profiles manually before these networks can connect reliably."
-    return
-  fi
-
-  if ! prompt_credentials username password; then
-    log "Skipped iwd profile creation because credentials were not provided."
-    log "Run this script from an interactive terminal so it can ask for your username and password."
-    return
-  fi
-
-  write_iwd_profiles_with_credentials "${username}" "${password}"
-  append_state_value "IWD_PROFILE_CREATED" "1"
-}
-
-profile_key_has_value() {
-  local profile_file="$1"
-  local key="$2"
-  local line=""
+networkmanager_profile_field_has_value() {
+  local profile_id="$1"
+  local field="$2"
   local value=""
 
-  while IFS= read -r line; do
-    if [[ "${line}" == "${key}="* ]]; then
-      value="${line#*=}"
-      [[ -n "${value}" ]]
-      return
-    fi
-  done <"${profile_file}"
-
-  return 1
+  value="$(nmcli --show-secrets --get-values "${field}" connection show "${profile_id}" 2>/dev/null)"
+  [[ -n "${value}" ]]
 }
 
-check_iwd_profiles() {
+networkmanager_profile_field_equals() {
+  local profile_id="$1"
+  local field="$2"
+  local expected="$3"
+  local value=""
+
+  value="$(nmcli --show-secrets --get-values "${field}" connection show "${profile_id}" 2>/dev/null)"
+  [[ "${value}" == "${expected}" ]]
+}
+
+check_networkmanager_profiles() {
   local ssid=""
-  local profile_file=""
+  local profile_id=""
   local failed=0
-  local key=""
-  local required_keys=(
-    "EAP-Identity"
-    "EAP-PEAP-Phase2-Identity"
-    "EAP-PEAP-Phase2-Password"
+  local field=""
+  local required_fields=(
+    "802-1x.identity"
+    "802-1x.password"
   )
 
   for ssid in "${SSIDS[@]}"; do
-    profile_file="$(iwd_profile_file_for_ssid "${ssid}")"
+    profile_id="$(networkmanager_profile_id_for_ssid "${ssid}")"
 
-    if [[ ! -f "${profile_file}" ]]; then
-      log "Missing profile: ${profile_file}"
+    if ! networkmanager_profile_exists "${profile_id}"; then
+      log "Missing NetworkManager profile: ${profile_id}"
       failed=1
       continue
     fi
 
-    if [[ ! -s "${profile_file}" ]]; then
-      log "Empty profile: ${profile_file}"
-      failed=1
-      continue
-    fi
-
-    for key in "${required_keys[@]}"; do
-      if ! profile_key_has_value "${profile_file}" "${key}"; then
-        log "Profile ${profile_file} has missing or blank ${key}."
+    for field in "${required_fields[@]}"; do
+      if ! networkmanager_profile_field_has_value "${profile_id}" "${field}"; then
+        log "Profile ${profile_id} has missing or blank ${field}."
         failed=1
       fi
     done
+
+    if ! networkmanager_profile_field_has_value "${profile_id}" "802-1x.ca-cert"; then
+      log "Profile ${profile_id} has no CA certificate configured."
+      failed=1
+    fi
+
+    if ! networkmanager_profile_field_equals "${profile_id}" "802-1x.system-ca-certs" "no"; then
+      log "Profile ${profile_id} uses system-ca-certs, which is unsupported by the iwd backend."
+      failed=1
+    fi
+
+    if ! networkmanager_profile_field_equals "${profile_id}" "802-1x.domain-suffix-match" "${AUTH_DOMAIN}"; then
+      log "Profile ${profile_id} does not validate the authentication domain ${AUTH_DOMAIN}."
+      failed=1
+    fi
   done
 
   if [[ "${failed}" -eq 0 ]]; then
-    log "All FU-Students iwd profiles exist and have non-empty credential fields."
+    log "All FU-Students NetworkManager profiles have credentials, CA validation, and the expected authentication domain."
     return 0
   fi
 
-  log "Profile check failed. Run: sudo ./$(script_name) --update-credentials"
+  log "Profile check failed. Use --update-credentials or --ca-cert as indicated above."
   return 1
+}
+
+install_ca_certificate() {
+  local source_file="$1"
+  local temp_dir=""
+  local candidate=""
+  local extracted=""
+  local constraints=""
+
+  [[ -f "${source_file}" && -r "${source_file}" ]] || return 1
+
+  mkdir -p "${STATE_DIR}"
+  temp_dir="$(mktemp -d "${STATE_DIR}/ca.XXXXXX")"
+  candidate="${temp_dir}/ca.pem"
+  extracted="${temp_dir}/pkcs12.pem"
+
+  if openssl x509 -in "${source_file}" -out "${candidate}" 2>/dev/null; then
+    :
+  elif openssl x509 -inform DER -in "${source_file}" -out "${candidate}" 2>/dev/null; then
+    :
+  else
+    if ! openssl pkcs12 -in "${source_file}" -cacerts -nokeys -passin pass: -out "${extracted}" 2>/dev/null; then
+      if [[ ! -t 0 ]]; then
+        rm -rf "${temp_dir}"
+        return 1
+      fi
+      log "The PKCS#12 file may require its import password."
+      if ! openssl pkcs12 -in "${source_file}" -cacerts -nokeys -out "${extracted}"; then
+        rm -rf "${temp_dir}"
+        return 1
+      fi
+    fi
+    if ! openssl x509 -in "${extracted}" -out "${candidate}"; then
+      rm -rf "${temp_dir}"
+      return 1
+    fi
+  fi
+
+  constraints="$(openssl x509 -in "${candidate}" -noout -ext basicConstraints 2>/dev/null || true)"
+  if [[ "${constraints}" != *"CA:TRUE"* ]] || ! openssl x509 -in "${candidate}" -checkend 0 -noout >/dev/null; then
+    rm -rf "${temp_dir}"
+    return 1
+  fi
+
+  cp "${candidate}" "${CA_CERT_FILE}"
+  chmod 0644 "${CA_CERT_FILE}"
+  rm -rf "${temp_dir}"
+
+  log "Installed CA certificate: ${CA_CERT_FILE}"
+  openssl x509 -in "${CA_CERT_FILE}" -noout -subject -issuer -fingerprint -sha256
+}
+
+apply_ca_certificate_to_profiles() {
+  local ca_cert="$1"
+  local ssid=""
+  local profile_id=""
+
+  for ssid in "${SSIDS[@]}"; do
+    profile_id="$(networkmanager_profile_id_for_ssid "${ssid}")"
+    nmcli connection modify "${profile_id}" \
+      802-1x.system-ca-certs no \
+      802-1x.ca-cert "${ca_cert}" \
+      802-1x.domain-suffix-match "${AUTH_DOMAIN}"
+    log "Updated CA validation for: ${profile_id}"
+  done
+}
+
+configure_ca_certificate() {
+  local source_file="$1"
+  local ca_cert=""
+  local ssid=""
+  local profile_id=""
+
+  require_root
+  require_command nmcli
+  require_command rm
+
+  for ssid in "${SSIDS[@]}"; do
+    profile_id="$(networkmanager_profile_id_for_ssid "${ssid}")"
+    networkmanager_profile_exists "${profile_id}" || die "missing profile ${profile_id}; run --setup first"
+  done
+
+  if [[ "${source_file}" == "system" ]]; then
+    ca_cert="$(system_ca_bundle)" || die "no supported system CA bundle was found"
+    apply_ca_certificate_to_profiles "${ca_cert}"
+    rm -f "${CA_CERT_FILE}"
+    log "Using the system CA bundle: ${ca_cert}"
+  else
+    require_command openssl
+    require_command mktemp
+    require_command cp
+    require_command chmod
+    install_ca_certificate "${source_file}" || die "the CA file is unreadable, expired, unsupported, or is not a CA certificate"
+    apply_ca_certificate_to_profiles "${CA_CERT_FILE}"
+  fi
+
+  check_networkmanager_profiles
+  log "Reconnect to FU-Students so the new certificate validation takes effect."
 }
 
 enable_iwd() {
   log "Enabling and starting iwd..."
   systemctl enable --now iwd
-}
-
-restart_iwd() {
-  log "Restarting iwd..."
-  systemctl restart iwd
 }
 
 restart_networkmanager() {
@@ -358,24 +474,38 @@ restart_networkmanager() {
 }
 
 setup_wifi() {
+  local username=""
+  local password=""
+
   require_root
   require_command systemctl
   require_command date
   require_command cp
+  require_command nmcli
 
   ensure_iwd_can_be_installed
+  active_ca_certificate >/dev/null || die "no supported system CA bundle was found; provide one with --ca-cert FILE"
+
+  if ! prompt_credentials username password; then
+    die "credentials were not provided. No system changes were made."
+  fi
+
   record_initial_state
   install_iwd
   write_networkmanager_config
-  write_iwd_profiles_interactive
   enable_iwd
-  restart_iwd
   restart_networkmanager
+  append_state_value "NM_PROFILES_MANAGED" "1"
+  append_state_value "IWD_PROFILE_CREATED" "1"
+  write_networkmanager_profiles_with_credentials "${username}" "${password}"
+  check_networkmanager_profiles
 
   log ""
-  log "Done. NetworkManager is configured to use iwd, and iwd is responsible for the FU-Students Wi-Fi profiles."
-  log "Do not create these networks again from the OS Wi-Fi dialog unless you are debugging."
-  log "iwd should connect automatically if the credentials are correct and one of the configured networks is visible."
+  log "Done. NetworkManager owns all Wi-Fi profiles and uses iwd only as its Wi-Fi backend."
+  log "Normal home, hotspot, and captive-portal networks can be managed from the OS Wi-Fi dialog."
+  log "FU-Students networks should connect automatically when visible."
+  log "CA validation uses: $(active_ca_certificate)"
+  log "If FPT uses its private CA, download it and run: sudo ./$(script_name) --ca-cert FILE"
   log ""
   log "If connection still fails, try:"
   log "  journalctl -u iwd -b"
@@ -393,18 +523,20 @@ update_credentials() {
   require_command systemctl
   require_command date
   require_command cp
+  require_command nmcli
 
+  active_ca_certificate >/dev/null || die "no supported system CA bundle was found; provide one with --ca-cert FILE"
   record_initial_state
 
   if ! prompt_credentials username password; then
     die "credentials were not provided. Run this command from an interactive terminal."
   fi
 
-  write_iwd_profiles_with_credentials "${username}" "${password}"
+  append_state_value "NM_PROFILES_MANAGED" "1"
   append_state_value "IWD_PROFILE_CREATED" "1"
-  check_iwd_profiles
+  write_networkmanager_profiles_with_credentials "${username}" "${password}"
+  check_networkmanager_profiles
 
-  restart_iwd
   restart_networkmanager
 
   log ""
@@ -435,6 +567,24 @@ load_state() {
   fi
   IWD_PROFILE_BACKUP_DIR="${IWD_PROFILE_BACKUP_DIR:-}"
   IWD_PROFILE_CREATED="${IWD_PROFILE_CREATED:-0}"
+  NM_PROFILES_MANAGED="${NM_PROFILES_MANAGED:-0}"
+}
+
+remove_networkmanager_profiles() {
+  local ssid=""
+  local profile_id=""
+
+  if [[ "${NM_PROFILES_MANAGED}" != "1" ]]; then
+    return
+  fi
+
+  for ssid in "${SSIDS[@]}"; do
+    profile_id="$(networkmanager_profile_id_for_ssid "${ssid}")"
+    if networkmanager_profile_exists "${profile_id}"; then
+      nmcli connection delete "${profile_id}"
+      log "Removed NetworkManager profile created by setup: ${profile_id}"
+    fi
+  done
 }
 
 restore_networkmanager_config() {
@@ -543,12 +693,18 @@ rollback_wifi() {
   require_command systemctl
   require_command cp
   require_command rm
+  require_command nmcli
 
   load_state
   restore_networkmanager_config
+  remove_networkmanager_profiles
   restore_iwd_profiles
   restore_iwd_state
   restart_networkmanager
+  if [[ -f "${CA_CERT_FILE}" ]]; then
+    rm -f "${CA_CERT_FILE}"
+    log "Removed CA certificate installed by setup: ${CA_CERT_FILE}"
+  fi
   remove_state_file
 
   log ""
@@ -569,10 +725,15 @@ main() {
       ;;
     --check)
       require_root
-      check_iwd_profiles
+      require_command nmcli
+      check_networkmanager_profiles
       ;;
     --update-credentials|--fix-credentials)
       update_credentials
+      ;;
+    --ca-cert)
+      [[ $# -eq 2 ]] || die "--ca-cert requires a certificate path or the value 'system'"
+      configure_ca_certificate "$2"
       ;;
     *)
       usage >&2
@@ -581,4 +742,6 @@ main() {
   esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

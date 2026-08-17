@@ -2,252 +2,132 @@
 
 [Tiếng Việt](README.vi.md)
 
-Fix connection issues with the `FU-Students` Wi-Fi network on some Linux distributions at FPT University, Can Tho campus.
-
-## 1. Problem
-
-Some Linux distributions, including common Fedora and Ubuntu installations, use NetworkManager with `wpa_supplicant` as the default Wi-Fi backend.
-
-At FPT University, Can Tho campus, this setup may fail to connect to the `FU-Students` Wi-Fi network. In observed cases, switching NetworkManager to use `iwd` as its Wi-Fi backend fixes the issue.
-
-There is one important detail: the normal OS network settings UI may still fail even after NetworkManager is switched to the `iwd` backend. A common symptom is that the credential dialog opens, but after clicking **Connect**, nothing happens. Clicking the same Wi-Fi network again opens the same credential dialog repeatedly.
-
-For these networks, the reliable path is to let `iwd` own the 802.1x profiles directly. This script therefore prompts for your university Wi-Fi credentials and writes iwd profiles instead of relying on the desktop network settings dialog to create them.
-
-Configured SSIDs:
+This repository helps Linux users connect to these networks at FPT University, Can Tho campus:
 
 - `FU-Students`
 - `FU-Students Alpha`
 - `FU-Students_6G`
 
-This repository provides:
+Some Fedora and Ubuntu systems fail to connect to these WPA-Enterprise networks with NetworkManager's default `wpa_supplicant` backend. The script switches only the Wi-Fi backend to `iwd`; NetworkManager remains the single owner of all Wi-Fi profiles and connection decisions.
 
-- A single script to configure NetworkManager to use `iwd`.
-- A rollback mode to revert the changes made by setup mode.
-- Manual troubleshooting notes for affected students.
-
-## 2. What setup mode changes
-
-`fu-students-wifi-fix.sh --setup` does the following:
-
-1. Installs `iwd` if it is not already installed.
-2. Backs up any existing NetworkManager Wi-Fi backend config at the target path.
-3. Backs up existing iwd profile files for the supported FU-Students SSIDs, if present.
-4. Writes this NetworkManager config:
-
-   ```ini
-   [main]
-   iwd-config-path=
-
-   [device]
-   wifi.backend=iwd
-   wifi.iwd.autoconnect=true
-   ```
-
-5. Prompts for your FU-Students username/student ID and password.
-6. Writes these iwd profiles using the same PEAP/MSCHAPV2 credentials:
-
-   ```text
-   /var/lib/iwd/FU-Students.8021x
-   /var/lib/iwd/FU-Students Alpha.8021x
-   /var/lib/iwd/FU-Students_6G.8021x
-   ```
-
-7. Enables and starts the `iwd` service.
-8. Restarts `iwd` and NetworkManager.
-9. Records enough state for `--rollback` to undo only the changes made by `--setup`.
-
-`iwd-config-path=` intentionally disables NetworkManager's iwd profile conversion. That prevents NetworkManager from overwriting the direct iwd profiles. `wifi.iwd.autoconnect=true` leaves iwd in charge of initiating connections from its own profiles.
-
-The script intentionally does not disable, mask, or uninstall `wpa_supplicant`. NetworkManager should use `iwd` after the backend config is applied, and leaving `wpa_supplicant` alone makes rollback safer.
-
-## 3. Supported systems
-
-Setup mode supports systems using:
-
-- `dnf`, such as Fedora
-- `apt-get`, such as Ubuntu or Debian
-
-> [!note]
->
-> Other distributions may still work if `iwd` is installed manually first, but package installation is not automated for them.
-
-## 4. Usage
-
-Clone this repository, then run:
+## 1. Usage
 
 ```bash
 chmod +x fu-students-wifi-fix.sh
 sudo ./fu-students-wifi-fix.sh --setup
 ```
 
-If you run the script without any flag, it prints help and makes no system changes:
+Setup requires an interactive terminal. It prompts for the university username/student ID and password before making any system changes.
 
-```bash
-./fu-students-wifi-fix.sh
-```
+After setup, normal home networks, hotspots, and captive portals can still be added from the operating system's Wi-Fi dialog.
 
-To show usage, supported flags, and troubleshooting:
-
-```bash
-./fu-students-wifi-fix.sh --help
-```
-
-The script will ask whether to create iwd profiles for the FU-Students Wi-Fi networks. Choose yes, then enter your university Wi-Fi username/student ID and password.
-
-After the script finishes, do not create these networks again from the OS Wi-Fi dialog. iwd should connect automatically when one of the configured networks is visible and the credentials are correct.
-
-## Check or fix mistyped credentials
-
-If you accidentally mistyped your username/student ID or password, do not rollback. Update the generated iwd profiles instead:
-
-```bash
-sudo ./fu-students-wifi-fix.sh --update-credentials
-```
-
-The script will prompt for your credentials again, rewrite all three FU-Students iwd profiles, validate that the credential fields are not blank, then restart `iwd` and NetworkManager.
-
-To check whether the generated profiles exist and have non-empty credential fields:
+Other commands:
 
 ```bash
 sudo ./fu-students-wifi-fix.sh --check
+sudo ./fu-students-wifi-fix.sh --update-credentials
+sudo ./fu-students-wifi-fix.sh --ca-cert /path/to/fun-DC-CA.p12
+sudo ./fu-students-wifi-fix.sh --ca-cert system
+sudo ./fu-students-wifi-fix.sh --rollback
+./fu-students-wifi-fix.sh --help
 ```
 
-This check does not print your password. It can detect missing profile files and blank username/password fields, but it cannot prove the password is correct unless the network accepts the connection.
+`--check` verifies that all managed NetworkManager profiles contain credentials, a CA certificate source, and the expected authentication domain. It never prints the password, but it cannot tell whether the password or certificate chain will be accepted by the network.
 
-## 5. Rollback
+## 2. What setup changes
 
-To revert the changes made by setup mode:
+Setup:
+
+1. Installs and starts `iwd` if needed.
+2. Backs up the previous backend config and matching native iwd profiles.
+3. Writes `/etc/NetworkManager/conf.d/wifi_backend.conf`:
+
+   ```ini
+   [device]
+   wifi.backend=iwd
+   wifi.iwd.autoconnect=false
+   ```
+
+4. Restarts NetworkManager.
+5. Creates or updates these NetworkManager profiles with PEAP/MSCHAPV2 credentials, CA validation for `fun.cantho`, and autoconnect priority `100`:
+
+   ```text
+   fu-students-wifi-fix:FU-Students
+   fu-students-wifi-fix:FU-Students Alpha
+   fu-students-wifi-fix:FU-Students_6G
+   ```
+
+`iwd-config-path` is deliberately left at its default value, `auto`, so NetworkManager mirrors profile changes into iwd. Setting `wifi.iwd.autoconnect=false` keeps NetworkManager responsible for autoconnect, retries, priorities, desktop dialogs, and every non-university Wi-Fi network.
+
+Setup first uses the distribution's PEM system CA bundle. NetworkManager's `system-ca-certs` setting is not used because the iwd backend does not support it directly. If the FPT RADIUS certificate uses the private `fun-DC-CA`, download the official certificate and switch all managed profiles with:
+
+```bash
+sudo ./fu-students-wifi-fix.sh --ca-cert ~/Downloads/fun-DC-CA.p12
+```
+
+PEM, DER, and PKCS#12 inputs are accepted. The script converts the selected CA to PEM, checks that it is a non-expired CA certificate, stores it at `/var/lib/fu-students-wifi-fix/fun-DC-CA.pem`, and prints its SHA-256 fingerprint. Use `--ca-cert system` to return to the system bundle. Reconnect after changing CA mode.
+
+The script does not disable, mask, or uninstall `wpa_supplicant`; leaving it installed makes rollback safer.
+
+## 3. Upgrading from an older script version
+
+Run setup again:
+
+```bash
+sudo ./fu-students-wifi-fix.sh --setup
+```
+
+The existing rollback state is preserved. The new setup migrates profile ownership to NetworkManager, while rollback remains able to restore or remove native iwd profiles created by the older version.
+
+## 4. Rollback
 
 ```bash
 sudo ./fu-students-wifi-fix.sh --rollback
 ```
 
-To show rollback usage and troubleshooting:
+Rollback removes only the `fu-students-wifi-fix:*` NetworkManager profiles and the CA copy installed by this script, restores the previous backend configuration and native iwd profiles when backed up, restores the previous iwd service state, and restarts NetworkManager. It does not uninstall packages.
+
+Rebooting after rollback is recommended because NetworkManager and iwd can retain runtime state.
+
+## 5. Troubleshooting
 
 ```bash
-./fu-students-wifi-fix.sh --help
+sudo ./fu-students-wifi-fix.sh --check
+NetworkManager --print-config
+nmcli connection show
+journalctl -u NetworkManager -u iwd -b
 ```
 
-Rollback will:
-
-- Restore the previous NetworkManager config if one was backed up.
-- Remove the config file if setup created it from scratch.
-- Restore previous iwd profile files for the supported FU-Students SSIDs if setup backed them up.
-- Remove generated iwd profiles if setup created them from scratch.
-- Restore the previous `iwd` service enabled/running state when possible.
-- Restart NetworkManager.
-
-Rollback does not uninstall `iwd`. Package removal is intentionally avoided because `iwd` may be used by other networks or system tools.
-
-> [!note]
->
-> After rollback, the script will ask whether you want to reboot immediately. Rebooting is recommended before testing Wi-Fi again because NetworkManager and `iwd` can keep runtime state that is not fully reset by restarting NetworkManager alone. If you choose not to reboot immediately, reboot manually later.
-
-## 6. Manual verification
-
-Check that NetworkManager is configured to use `iwd`:
+If credentials may be wrong:
 
 ```bash
-NetworkManager --print-config | grep -i 'wifi.backend'
+sudo ./fu-students-wifi-fix.sh --update-credentials
 ```
 
-Check that NetworkManager iwd profile conversion is disabled:
+Old profiles named exactly like the SSIDs are not modified by this script. If one interferes with the managed profile, remove it explicitly after confirming its name with `nmcli connection show`.
 
-```bash
-NetworkManager --print-config | grep -i 'iwd-config-path'
-```
-
-Check that `iwd` is running:
-
-```bash
-systemctl status iwd
-```
-
-List visible Wi-Fi networks:
-
-```bash
-nmcli dev wifi list
-```
-
-Check that the generated iwd profile exists:
-
-```bash
-sudo ls -l /var/lib/iwd/FU-Students.8021x
-sudo ls -l '/var/lib/iwd/FU-Students Alpha.8021x'
-sudo ls -l /var/lib/iwd/FU-Students_6G.8021x
-```
-
-Check NetworkManager logs:
-
-```bash
-journalctl -u NetworkManager -b
-```
-
-## 7. Troubleshooting
-
-If connection still fails after running setup:
-
-1. Check for missing or blank credential fields:
-
-   ```bash
-   sudo ./fu-students-wifi-fix.sh --check
-   ```
-
-2. If you may have mistyped your username/student ID or password, update the iwd profiles:
-
-   ```bash
-   sudo ./fu-students-wifi-fix.sh --update-credentials
-   ```
-
-3. Restart NetworkManager again:
-
-   ```bash
-   sudo systemctl restart NetworkManager
-   ```
-
-4. If you previously created broken profiles from the OS Wi-Fi dialog, delete those NetworkManager profiles:
-
-   ```bash
-   nmcli connection delete FU-Students
-   nmcli connection delete 'FU-Students Alpha'
-   nmcli connection delete FU-Students_6G
-   ```
-
-5. Do not recreate these networks from the OS Wi-Fi dialog. The direct iwd profiles should be used instead.
-6. Confirm the iwd profiles exist:
-
-   ```bash
-   sudo ls -l /var/lib/iwd/FU-Students.8021x
-   sudo ls -l '/var/lib/iwd/FU-Students Alpha.8021x'
-   sudo ls -l /var/lib/iwd/FU-Students_6G.8021x
-   ```
-
-7. Reboot if NetworkManager or `iwd` appears stuck.
-8. Check logs:
-
-   ```bash
-   journalctl -u NetworkManager -b
-   journalctl -u iwd -b
-   ```
-
-## 8. Files changed by setup
-
-Setup mode only writes to:
+## 6. Files and profiles affected
 
 - `/etc/NetworkManager/conf.d/wifi_backend.conf`
-- `/var/lib/iwd/FU-Students.8021x`
-- `/var/lib/iwd/FU-Students Alpha.8021x`
-- `/var/lib/iwd/FU-Students_6G.8021x`
+- NetworkManager's distribution-specific persistent profile store
+- iwd's profile store, indirectly through NetworkManager's built-in conversion
+- `/var/lib/fu-students-wifi-fix/fun-DC-CA.pem`, when a custom CA is selected
 - `/var/backups/fu-students-wifi-fix/`
 - `/var/lib/fu-students-wifi-fix/`
 
-Existing iwd profile files for the supported FU-Students SSIDs are backed up before generated profiles are written.
+## 7. Security note
+
+FPT Can Tho's helpdesk documents a `fun-DC-CA` certificate and the `fun.cantho` authentication domain. This script never disables CA validation and does not bundle the login-protected certificate. Obtain it from the [FPT Can Tho helpdesk instructions](https://it.fpt.edu.vn/cantho/cach-vao-wifi-truong-bang-dien-thoai/) if the system CA bundle is not sufficient.
+
+## 8. Supported systems
+
+The script can install iwd with `dnf` or `apt-get`. Other distributions can work when iwd is installed manually and a supported PEM system CA bundle is available. OpenSSL is required only when importing a custom CA file.
 
 ## 9. References
 
-- [NetworkManager.conf reference](https://networkmanager.pages.freedesktop.org/NetworkManager/NetworkManager/NetworkManager.conf.html): documents `wifi.backend`, `wifi.iwd.autoconnect`, and `iwd-config-path`.
+- [NetworkManager.conf reference](https://networkmanager.dev/docs/api/latest/NetworkManager.conf.html)
+- [NetworkManager profile settings](https://networkmanager.dev/docs/api/latest/nm-settings-nmcli.html)
 
 ## 10. License
 
-This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE).
+GNU General Public License v3.0. See [LICENSE](LICENSE).

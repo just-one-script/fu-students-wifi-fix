@@ -2,134 +2,83 @@
 
 [English](README.md)
 
-Repo này giúp sinh viên FPT University Cần Thơ kết nối các mạng Wi-Fi sau trên Linux:
+Script này giúp kết nối các mạng Wi-Fi sau tại FPT University Cần Thơ:
 
 - `FU-Students`
 - `FU-Students Alpha`
 - `FU-Students_6G`
 
-Script `fu-students-wifi-fix.sh` trong repo này sẽ cấu hình lại Wi-Fi backend sang `iwd` và tạo sẵn profile cho các mạng trên.
+Sau khi dùng script, bạn vẫn có thể kết nối Wi-Fi gia đình, Wi-Fi từ điện thoại và các mạng công cộng như bình thường.
 
-## 1. Cách dùng nhanh
+## Cài đặt
 
-Clone repo, sau đó chạy:
+Mở ứng dụng Terminal tại thư mục chứa script rồi chạy:
 
 ```bash
 chmod +x fu-students-wifi-fix.sh
 sudo ./fu-students-wifi-fix.sh --setup
 ```
 
-Nếu chạy script mà không thêm flag nào, script chỉ hiện hướng dẫn và không thay đổi hệ thống:
+Nhập tài khoản sinh viên và mật khẩu Wi-Fi khi được hỏi. Mật khẩu sẽ không hiện trên màn hình trong lúc nhập.
 
-```bash
-./fu-students-wifi-fix.sh
-```
+Sau khi script chạy xong, thử kết nối lại Wi-Fi. Nếu máy vẫn giữ trạng thái lỗi cũ, hãy khởi động lại máy.
 
-Khi script hỏi có tạo profile Wi-Fi không, chọn yes. Sau đó nhập username/student ID và mật khẩu Wi-Fi của trường.
+> Nếu đã dùng phiên bản cũ của script, chỉ cần chạy lại `--setup`. Không cần chạy lệnh hoàn tác trước.
 
-Sau khi chạy xong, không tạo lại các mạng `FU-Students` từ giao diện Wi-Fi của hệ điều hành. Nếu thông tin đăng nhập đúng, máy sẽ tự kết nối khi thấy mạng phù hợp.
+## Nếu vẫn không kết nối được
 
-## 2. Nếu nhập sai tài khoản hoặc mật khẩu
-
-Không cần rollback. Chạy:
-
-```bash
-sudo ./fu-students-wifi-fix.sh --update-credentials
-```
-
-Script sẽ hỏi lại username/student ID và mật khẩu, sau đó ghi lại profile Wi-Fi.
-
-Để kiểm tra profile có bị thiếu hoặc bị trống thông tin đăng nhập không:
+Kiểm tra cấu hình đã được tạo đầy đủ:
 
 ```bash
 sudo ./fu-students-wifi-fix.sh --check
 ```
 
-Lưu ý: lệnh kiểm tra không thể biết mật khẩu đúng hay sai. Nó chỉ kiểm tra profile có tồn tại và có field tài khoản/mật khẩu hay không.
+Nếu có thể đã nhập sai tài khoản hoặc mật khẩu:
 
-## 3. Nếu vẫn không kết nối được
+```bash
+sudo ./fu-students-wifi-fix.sh --update-credentials
+```
 
-Thử theo thứ tự:
+### Khi cần chứng chỉ của FPT
 
-1. Kiểm tra profile:
+Script mặc định dùng các chứng chỉ bảo mật có sẵn trong máy. Nếu Wi-Fi trường vẫn từ chối kết nối, máy có thể cần chứng chỉ riêng của FPT:
 
-   ```bash
-   sudo ./fu-students-wifi-fix.sh --check
-   ```
-
-2. Nhập lại tài khoản/mật khẩu:
-
-   ```bash
-   sudo ./fu-students-wifi-fix.sh --update-credentials
-   ```
-
-3. Nếu trước đó bạn đã từng bấm kết nối bằng giao diện Wi-Fi của hệ điều hành, xóa các profile cũ:
+1. Tải file `fun-DC-CA.p12` theo [hướng dẫn của Helpdesk FPT Cần Thơ](https://it.fpt.edu.vn/cantho/cach-vao-wifi-truong-bang-dien-thoai/). Bạn có thể cần dùng Wi-Fi khách, mạng điện thoại hoặc một kết nối Internet khác để tải file.
+2. Chạy lệnh sau và thay đường dẫn bằng vị trí file vừa tải:
 
    ```bash
-   nmcli connection delete FU-Students
-   nmcli connection delete 'FU-Students Alpha'
-   nmcli connection delete FU-Students_6G
+   sudo ./fu-students-wifi-fix.sh --ca-cert ~/Downloads/fun-DC-CA.p12
    ```
 
-4. Restart NetworkManager:
+3. Ngắt rồi kết nối lại Wi-Fi trường.
 
-   ```bash
-   sudo systemctl restart NetworkManager
-   ```
+Chỉ sử dụng chứng chỉ tải từ nguồn chính thức của FPT. Nếu muốn quay lại dùng chứng chỉ có sẵn trong hệ điều hành:
 
-5. Nếu vẫn lỗi, reboot máy.
+```bash
+sudo ./fu-students-wifi-fix.sh --ca-cert system
+```
 
-6. Xem log để tìm lỗi:
+Nếu vẫn gặp lỗi, gửi kết quả của các lệnh sau cho bộ phận hỗ trợ kỹ thuật:
 
-   ```bash
-   journalctl -u iwd -b
-   journalctl -u NetworkManager -b
-   ```
+```bash
+sudo ./fu-students-wifi-fix.sh --check
+journalctl -u NetworkManager -u iwd -b
+```
 
-## 4. Rollback
+## Hoàn tác thay đổi
 
-Nếu muốn hoàn tác thay đổi:
+Để đưa cấu hình Wi-Fi về trạng thái trước khi chạy setup:
 
 ```bash
 sudo ./fu-students-wifi-fix.sh --rollback
 ```
 
-> [!note]
->
-> Sau khi rollback, script sẽ hỏi bạn có muốn reboot ngay không. Nên reboot trước khi thử Wi-Fi lại.
+Nên khởi động lại máy sau khi hoàn tác. Script không gỡ thành phần `iwd` đã cài đặt.
 
-## 5. Các lệnh trợ giúp
+## Hệ thống hỗ trợ
 
-Xem hướng dẫn của script:
+Script có thể tự cài thành phần cần thiết trên Fedora, Ubuntu, Linux Mint và Debian. Với bản Linux khác, bạn có thể phải tự cài `iwd` trước.
 
-```bash
-./fu-students-wifi-fix.sh --help
-```
+## Giấy phép
 
-## 6. Script sẽ thay đổi gì?
-
-Script có thể ghi vào các file/thư mục sau:
-
-- `/etc/NetworkManager/conf.d/wifi_backend.conf`
-- `/var/lib/iwd/FU-Students.8021x`
-- `/var/lib/iwd/FU-Students Alpha.8021x`
-- `/var/lib/iwd/FU-Students_6G.8021x`
-- `/var/backups/fu-students-wifi-fix/`
-- `/var/lib/fu-students-wifi-fix/`
-
-Nếu đã có profile iwd cũ cho các mạng này, script sẽ sao lưu trước khi ghi profile mới.
-
-## 7. Hệ thống được hỗ trợ
-
-Script có thể tự cài `iwd` trên các hệ thống dùng:
-
-- `dnf`, ví dụ Fedora
-- `apt-get`, ví dụ Ubuntu hoặc Debian
-
-> [!important]
->
-> Nếu distro của bạn không dùng `dnf` hoặc `apt-get`, hãy tự cài `iwd` trước rồi chạy lại script.
-
-## 8. Giấy phép
-
-Dự án này dùng giấy phép GNU General Public License v3.0. Xem [LICENSE](LICENSE).
+GNU General Public License v3.0. Xem [LICENSE](LICENSE).
