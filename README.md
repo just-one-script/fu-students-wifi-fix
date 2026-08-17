@@ -26,7 +26,7 @@ Other commands:
 ```bash
 sudo ./fu-students-wifi-fix.sh --check
 sudo ./fu-students-wifi-fix.sh --update-credentials
-sudo ./fu-students-wifi-fix.sh --ca-cert /path/to/fun-DC-CA.p12
+sudo ./fu-students-wifi-fix.sh --ca-cert /path/to/current-fpt-ca
 sudo ./fu-students-wifi-fix.sh --ca-cert system
 sudo ./fu-students-wifi-fix.sh --rollback
 ./fu-students-wifi-fix.sh --help
@@ -59,13 +59,15 @@ Setup:
 
 `iwd-config-path` is deliberately left at its default value, `auto`, so NetworkManager mirrors profile changes into iwd. Setting `wifi.iwd.autoconnect=false` keeps NetworkManager responsible for autoconnect, retries, priorities, desktop dialogs, and every non-university Wi-Fi network.
 
-Setup first uses the distribution's PEM system CA bundle. NetworkManager's `system-ca-certs` setting is not used because the iwd backend does not support it directly. If the FPT RADIUS certificate uses the private `fun-DC-CA`, download the official certificate and switch all managed profiles with:
+Setup first uses the distribution's PEM system CA bundle. NetworkManager's `system-ca-certs` setting is not used because the iwd backend does not support it directly. If certificate validation fails, request the current CA for `FU-Students` from [FPT Can Tho IT Helpdesk](https://it.fpt.edu.vn/cantho/) and confirm that the authentication domain is still `fun.cantho`. Then switch all managed profiles with:
 
 ```bash
-sudo ./fu-students-wifi-fix.sh --ca-cert ~/Downloads/fun-DC-CA.p12
+sudo ./fu-students-wifi-fix.sh --ca-cert /path/to/current-fpt-ca
 ```
 
-PEM, DER, and PKCS#12 inputs are accepted. The script converts the selected CA to PEM, checks that it is a non-expired CA certificate, stores it at `/var/lib/fu-students-wifi-fix/fun-DC-CA.pem`, and prints its SHA-256 fingerprint. Use `--ca-cert system` to return to the system bundle. Reconnect after changing CA mode.
+PEM, DER, and PKCS#12 inputs are accepted. The script converts the selected CA to PEM, checks that it is a non-expired CA certificate, stores it at `/var/lib/fu-students-wifi-fix/fpt-radius-ca.pem`, and prints its SHA-256 fingerprint. Use `--ca-cert system` to return to the system bundle. Reconnect after changing CA mode.
+
+Do not import a certificate from an unofficial mirror. If IT provides an authentication domain other than `fun.cantho`, report it before using the certificate.
 
 The script does not disable, mask, or uninstall `wpa_supplicant`; leaving it installed makes rollback safer.
 
@@ -111,13 +113,13 @@ Old profiles named exactly like the SSIDs are not modified by this script. If on
 - `/etc/NetworkManager/conf.d/wifi_backend.conf`
 - NetworkManager's distribution-specific persistent profile store
 - iwd's profile store, indirectly through NetworkManager's built-in conversion
-- `/var/lib/fu-students-wifi-fix/fun-DC-CA.pem`, when a custom CA is selected
+- `/var/lib/fu-students-wifi-fix/fpt-radius-ca.pem`, when a custom CA is selected
 - `/var/backups/fu-students-wifi-fix/`
 - `/var/lib/fu-students-wifi-fix/`
 
 ## 7. Security note
 
-FPT Can Tho's helpdesk documents a `fun-DC-CA` certificate and the `fun.cantho` authentication domain. This script never disables CA validation and does not bundle the login-protected certificate. Obtain it from the [FPT Can Tho helpdesk instructions](https://it.fpt.edu.vn/cantho/cach-vao-wifi-truong-bang-dien-thoai/) if the system CA bundle is not sufficient.
+This script never disables CA validation and does not bundle a CA certificate. Only import a current certificate received through an official FPT channel.
 
 ## 8. Supported systems
 

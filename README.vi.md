@@ -43,26 +43,19 @@ sudo ./fu-students-wifi-fix.sh --update-credentials
 
 Script mặc định dùng các chứng chỉ bảo mật có sẵn trong máy. Nếu Wi-Fi trường vẫn từ chối kết nối, máy có thể cần chứng chỉ riêng của FPT:
 
-1. Tải file `fun-DC-CA.p12` theo [hướng dẫn của Helpdesk FPT Cần Thơ](https://it.fpt.edu.vn/cantho/cach-vao-wifi-truong-bang-dien-thoai/). Bạn có thể cần dùng Wi-Fi khách, mạng điện thoại hoặc một kết nối Internet khác để tải file.
-2. Chạy lệnh sau và thay đường dẫn bằng vị trí file vừa tải:
+1. Liên hệ IT Helpdesk FPT Cần Thơ để xin chứng chỉ CA hiện đang dùng cho `FU-Students` và xác nhận tên miền xác thực vẫn là `fun.cantho`.
+2. Sau khi nhận file từ IT, chạy lệnh sau và thay đường dẫn bằng vị trí file:
 
    ```bash
-   sudo ./fu-students-wifi-fix.sh --ca-cert ~/Downloads/fun-DC-CA.p12
+   sudo ./fu-students-wifi-fix.sh --ca-cert /duong/dan/chung-chi-ca
    ```
 
 3. Ngắt rồi kết nối lại Wi-Fi trường.
 
-Chỉ sử dụng chứng chỉ tải từ nguồn chính thức của FPT. Nếu muốn quay lại dùng chứng chỉ có sẵn trong hệ điều hành:
+4. Nếu muốn quay lại dùng chứng chỉ có sẵn trong hệ điều hành:
 
 ```bash
 sudo ./fu-students-wifi-fix.sh --ca-cert system
-```
-
-Nếu vẫn gặp lỗi, gửi kết quả của các lệnh sau cho bộ phận hỗ trợ kỹ thuật:
-
-```bash
-sudo ./fu-students-wifi-fix.sh --check
-journalctl -u NetworkManager -u iwd -b
 ```
 
 ## Hoàn tác thay đổi

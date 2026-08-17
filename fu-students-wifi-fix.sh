@@ -7,7 +7,7 @@ STATE_DIR="/var/lib/fu-students-wifi-fix"
 STATE_FILE="${STATE_DIR}/state"
 IWD_STATE_DIR="/var/lib/iwd"
 PROFILE_PREFIX="fu-students-wifi-fix"
-CA_CERT_FILE="${STATE_DIR}/fun-DC-CA.pem"
+CA_CERT_FILE="${STATE_DIR}/fpt-radius-ca.pem"
 AUTH_DOMAIN="fun.cantho"
 SSIDS=("FU-Students" "FU-Students Alpha" "FU-Students_6G")
 
@@ -505,7 +505,7 @@ setup_wifi() {
   log "Normal home, hotspot, and captive-portal networks can be managed from the OS Wi-Fi dialog."
   log "FU-Students networks should connect automatically when visible."
   log "CA validation uses: $(active_ca_certificate)"
-  log "If FPT uses its private CA, download it and run: sudo ./$(script_name) --ca-cert FILE"
+  log "If certificate validation fails, obtain the current CA from FPT IT and run: sudo ./$(script_name) --ca-cert FILE"
   log ""
   log "If connection still fails, try:"
   log "  journalctl -u iwd -b"
