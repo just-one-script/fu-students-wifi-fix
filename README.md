@@ -8,11 +8,13 @@ This repository helps Linux users connect to these networks at FPT University, C
 - `FU-Students Alpha`
 - `FU-Students_6G`
 
-Some Fedora and Ubuntu systems fail to connect to these WPA-Enterprise networks with NetworkManager's default `wpa_supplicant` backend. The script switches only the Wi-Fi backend to `iwd`; NetworkManager remains the single owner of all Wi-Fi profiles and connection decisions.
+The script switches only the Wi-Fi backend to `iwd`; NetworkManager remains the single owner of all Wi-Fi profiles and connection decisions.
 
 ## 1. Usage
 
 ```bash
+git clone https://github.com/just-one-script/fu-students-wifi-fix.git
+cd fu-students-wifi-fix
 chmod +x fu-students-wifi-fix.sh
 sudo ./fu-students-wifi-fix.sh --setup
 ```
@@ -59,29 +61,17 @@ Setup:
 
 `iwd-config-path` is deliberately left at its default value, `auto`, so NetworkManager mirrors profile changes into iwd. Setting `wifi.iwd.autoconnect=false` keeps NetworkManager responsible for autoconnect, retries, priorities, desktop dialogs, and every non-university Wi-Fi network.
 
-Setup first uses the distribution's PEM system CA bundle. NetworkManager's `system-ca-certs` setting is not used because the iwd backend does not support it directly. If certificate validation fails, request the current CA for `FU-Students` from [FPT Can Tho IT Helpdesk](https://it.fpt.edu.vn/cantho/) and confirm that the authentication domain is still `fun.cantho`. Then switch all managed profiles with:
+Setup first uses the distribution's PEM system CA bundle. NetworkManager's `system-ca-certs` setting is not used because the iwd backend does not support it directly. If certificate validation fails:
 
 ```bash
-sudo ./fu-students-wifi-fix.sh --ca-cert /path/to/current-fpt-ca
+sudo ./fu-students-wifi-fix.sh --ca-cert /path/to/current-ca-cert
 ```
 
 PEM, DER, and PKCS#12 inputs are accepted. The script converts the selected CA to PEM, checks that it is a non-expired CA certificate, stores it at `/var/lib/fu-students-wifi-fix/fpt-radius-ca.pem`, and prints its SHA-256 fingerprint. Use `--ca-cert system` to return to the system bundle. Reconnect after changing CA mode.
 
-Do not import a certificate from an unofficial mirror. If IT provides an authentication domain other than `fun.cantho`, report it before using the certificate.
-
 The script does not disable, mask, or uninstall `wpa_supplicant`; leaving it installed makes rollback safer.
 
-## 3. Upgrading from an older script version
-
-Run setup again:
-
-```bash
-sudo ./fu-students-wifi-fix.sh --setup
-```
-
-The existing rollback state is preserved. The new setup migrates profile ownership to NetworkManager, while rollback remains able to restore or remove native iwd profiles created by the older version.
-
-## 4. Rollback
+## 3. Rollback
 
 ```bash
 sudo ./fu-students-wifi-fix.sh --rollback
@@ -89,9 +79,9 @@ sudo ./fu-students-wifi-fix.sh --rollback
 
 Rollback removes only the `fu-students-wifi-fix:*` NetworkManager profiles and the CA copy installed by this script, restores the previous backend configuration and native iwd profiles when backed up, restores the previous iwd service state, and restarts NetworkManager. It does not uninstall packages.
 
-Rebooting after rollback is recommended because NetworkManager and iwd can retain runtime state.
+**Rebooting after rollback is recommended because NetworkManager and iwd can retain runtime state.**
 
-## 5. Troubleshooting
+## 4. Troubleshooting
 
 ```bash
 sudo ./fu-students-wifi-fix.sh --check
@@ -108,7 +98,7 @@ sudo ./fu-students-wifi-fix.sh --update-credentials
 
 Old profiles named exactly like the SSIDs are not modified by this script. If one interferes with the managed profile, remove it explicitly after confirming its name with `nmcli connection show`.
 
-## 6. Files and profiles affected
+## 5. Files and profiles affected
 
 - `/etc/NetworkManager/conf.d/wifi_backend.conf`
 - NetworkManager's distribution-specific persistent profile store
@@ -117,19 +107,11 @@ Old profiles named exactly like the SSIDs are not modified by this script. If on
 - `/var/backups/fu-students-wifi-fix/`
 - `/var/lib/fu-students-wifi-fix/`
 
-## 7. Security note
-
-This script never disables CA validation and does not bundle a CA certificate. Only import a current certificate received through an official FPT channel.
-
-## 8. Supported systems
-
-The script can install iwd with `dnf` or `apt-get`. Other distributions can work when iwd is installed manually and a supported PEM system CA bundle is available. OpenSSL is required only when importing a custom CA file.
-
-## 9. References
+## 6. References
 
 - [NetworkManager.conf reference](https://networkmanager.dev/docs/api/latest/NetworkManager.conf.html)
 - [NetworkManager profile settings](https://networkmanager.dev/docs/api/latest/nm-settings-nmcli.html)
 
-## 10. License
+## 7. License
 
 GNU General Public License v3.0. See [LICENSE](LICENSE).

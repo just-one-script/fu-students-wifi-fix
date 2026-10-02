@@ -8,24 +8,24 @@ Script này giúp kết nối các mạng Wi-Fi sau tại FPT University Cần T
 - `FU-Students Alpha`
 - `FU-Students_6G`
 
-Sau khi dùng script, bạn vẫn có thể kết nối Wi-Fi gia đình, Wi-Fi từ điện thoại và các mạng công cộng như bình thường.
+Script có thể tự cài thành phần cần thiết trên Fedora, Ubuntu, Linux Mint và Debian. Với bản Linux khác, bạn có thể phải tự cài `iwd` trước (tìm `iwd install <tên distro>` trên mạng để được hướng dẫn).
 
 ## Cài đặt
 
-Mở ứng dụng Terminal tại thư mục chứa script rồi chạy:
+Mở Terminal và chạy các lệnh sau:
 
 ```bash
+git clone https://github.com/just-one-script/fu-students-wifi-fix.git
+cd fu-students-wifi-fix
 chmod +x fu-students-wifi-fix.sh
 sudo ./fu-students-wifi-fix.sh --setup
 ```
 
-Nhập tài khoản sinh viên và mật khẩu Wi-Fi khi được hỏi. Mật khẩu sẽ không hiện trên màn hình trong lúc nhập.
+Nhập tên đăng nhập và mật khẩu Wi-Fi khi được hỏi.
 
-Sau khi script chạy xong, thử kết nối lại Wi-Fi. Nếu máy vẫn giữ trạng thái lỗi cũ, hãy khởi động lại máy.
+Nếu máy vẫn chưa kết nối được vào mạng ngay sau khi chạy script, hãy khởi động lại máy.
 
-> Nếu đã dùng phiên bản cũ của script, chỉ cần chạy lại `--setup`. Không cần chạy lệnh hoàn tác trước.
-
-## Nếu vẫn không kết nối được
+## Nếu vẫn không kết nối được sau khi khởi động lại
 
 Kiểm tra cấu hình đã được tạo đầy đủ:
 
@@ -39,25 +39,6 @@ Nếu có thể đã nhập sai tài khoản hoặc mật khẩu:
 sudo ./fu-students-wifi-fix.sh --update-credentials
 ```
 
-### Khi cần chứng chỉ của FPT
-
-Script mặc định dùng các chứng chỉ bảo mật có sẵn trong máy. Nếu Wi-Fi trường vẫn từ chối kết nối, máy có thể cần chứng chỉ riêng của FPT:
-
-1. Liên hệ IT Helpdesk FPT Cần Thơ để xin chứng chỉ CA hiện đang dùng cho `FU-Students` và xác nhận tên miền xác thực vẫn là `fun.cantho`.
-2. Sau khi nhận file từ IT, chạy lệnh sau và thay đường dẫn bằng vị trí file:
-
-   ```bash
-   sudo ./fu-students-wifi-fix.sh --ca-cert /duong/dan/chung-chi-ca
-   ```
-
-3. Ngắt rồi kết nối lại Wi-Fi trường.
-
-4. Nếu muốn quay lại dùng chứng chỉ có sẵn trong hệ điều hành:
-
-```bash
-sudo ./fu-students-wifi-fix.sh --ca-cert system
-```
-
 ## Hoàn tác thay đổi
 
 Để đưa cấu hình Wi-Fi về trạng thái trước khi chạy setup:
@@ -66,11 +47,7 @@ sudo ./fu-students-wifi-fix.sh --ca-cert system
 sudo ./fu-students-wifi-fix.sh --rollback
 ```
 
-Nên khởi động lại máy sau khi hoàn tác. Script không gỡ thành phần `iwd` đã cài đặt.
-
-## Hệ thống hỗ trợ
-
-Script có thể tự cài thành phần cần thiết trên Fedora, Ubuntu, Linux Mint và Debian. Với bản Linux khác, bạn có thể phải tự cài `iwd` trước.
+**Nên khởi động lại máy sau khi hoàn tác.** Script không gỡ thành phần `iwd` đã cài đặt.
 
 ## Giấy phép
 
